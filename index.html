@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile Frame Maker</title>
+<meta name="description" content="Add a curved text banner to your profile picture. Everything runs in your browser; your photo is never uploaded.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Montserrat:wght@800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f4f6f9;--card:#ffffff;--text:#1c2230;--muted:#5d6678;--line:#e1e5ec;--accent:#0a66c2;--accent-text:#fff}
+  @media (prefers-color-scheme:dark){:root{--bg:#11141a;--card:#1a1f28;--text:#e7eaf0;--muted:#9aa3b4;--line:#2b323e;--accent:#4b9be6;--accent-text:#0b1220}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.4}
+  header{padding:28px 16px 4px;text-align:center}
+  h1{margin:0;font-size:1.65rem;letter-spacing:-.01em}
+  header p{margin:6px auto 0;color:var(--muted);max-width:560px}
+  main{max-width:1020px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+  @media (max-width:840px){main{grid-template-columns:minmax(0,1fr)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:12px;position:relative}
+  .stage.dragover{outline:3px dashed var(--accent);outline-offset:-8px}
+  canvas{width:100%;max-width:480px;aspect-ratio:1/1;touch-action:none;cursor:grab;border-radius:50%;
+    background:repeating-conic-gradient(#8881 0 25%,#0000 0 50%) 0 0/24px 24px}
+  canvas:active{cursor:grabbing}
+  .hint{font-size:.85rem;color:var(--muted);text-align:center;margin:0}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .panel{display:flex;flex-direction:column;gap:14px}
+  .panel h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:6px 0 -4px}
+  label{display:flex;flex-direction:column;gap:6px;font-size:.9rem;font-weight:600}
+  label.inline{flex-direction:row;align-items:center;gap:8px}
+  .lbl{display:flex;justify-content:space-between}
+  output{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  input[type=text],select{font:inherit;font-weight:400;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);width:100%}
+  input[type=color]{width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:3px;cursor:pointer}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  footer{text-align:center;color:var(--muted);font-size:.8rem;padding:8px 16px 28px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Profile Frame Maker</h1>
+  <p>Upload a photo, add a curved banner, download. Your photo stays on your device.</p>
+</header>
+
+<main>
+  <section class="card stage" id="stage">
+    <canvas id="cv" aria-label="Profile picture preview"></canvas>
+    <p class="hint">Drag the photo to position it. Scroll or pinch to zoom.</p>
+    <div class="actions">
+      <button class="btn primary" id="download" disabled>Download PNG</button>
+      <button class="btn" id="share" disabled hidden>Share image</button>
+      <button class="btn" id="copylink">Copy link to this frame</button>
+    </div>
+  </section>
+
+  <section class="card panel">
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn primary" id="pick">Upload photo</button>
+      <button class="btn" id="reset" disabled>Reset position</button>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+    <label><span class="lbl">Zoom <output for="zoom"></output></span>
+      <input type="range" id="zoom" min="0.5" max="5" step="0.01" value="1" data-photo></label>
+
+    <h2>Banner text</h2>
+    <label>Text <input type="text" id="text" maxlength="48" value="Your text here" data-setting></label>
+    <div class="grid2">
+      <label>Font
+        <select id="font" data-setting>
+          <option value="Poppins">Poppins</option>
+          <option value="Montserrat">Montserrat</option>
+          <option value="system-ui">System sans</option>
+          <option value="Georgia">Serif</option>
+        </select></label>
+      <label>Text color <input type="color" id="tcolor" value="#ffffff" data-setting></label>
+    </div>
+    <label><span class="lbl">Text size <output for="fsize"></output></span>
+      <input type="range" id="fsize" min="28" max="120" step="1" value="64" data-setting></label>
+    <label><span class="lbl">Letter spacing <output for="spacing"></output></span>
+      <input type="range" id="spacing" min="-4" max="24" step="1" value="2" data-setting></label>
+    <label><span class="lbl">Text offset <output for="toffset"></output></span>
+      <input type="range" id="toffset" min="-40" max="40" step="1" value="0" data-setting></label>
+    <div class="grid2">
+      <label class="inline"><input type="checkbox" id="shadow" checked data-setting> Text shadow</label>
+      <label>Shadow color <input type="color" id="scolor" value="#000000" data-setting></label>
+    </div>
+
+    <h2>Banner</h2>
+    <div class="grid2">
+      <label>Color #1 <input type="color" id="c1" value="#0a66c2" data-setting></label>
+      <label>Color #2 <input type="color" id="c2" value="#5ab0ff" data-setting></label>
+    </div>
+    <label><span class="lbl">Thickness <output for="thick"></output></span>
+      <input type="range" id="thick" min="60" max="260" step="1" value="150" data-setting></label>
+    <label><span class="lbl">Extra length <output for="pad"></output></span>
+      <input type="range" id="pad" min="0" max="90" step="1" value="14" data-setting></label>
+    <label><span class="lbl">Position (rotate) <output for="pos"></output></span>
+      <input type="range" id="pos" min="-180" max="180" step="1" value="0" data-setting></label>
+    <label>Photo background <input type="color" id="bg" value="#dfe5ec" data-setting></label>
+  </section>
+</main>
+
+<footer>Made with plain HTML, CSS and JavaScript — no data leaves your browser.</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const SIZE = 1000, C = SIZE / 2, R = SIZE / 2;
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  cv.width = cv.height = SIZE;
+
+  const state = { img: null, x: 0, y: 0, scale: 1 };
+  let baseScale = 1;
+
+  // ---------- settings in the URL (so a configured frame can be shared as a link) ----------
+  const settingEls = [...document.querySelectorAll('[data-setting]')];
+  function readUrl() {
+    const p = new URLSearchParams(location.search);
+    settingEls.forEach(el => {
+      if (!p.has(el.id)) return;
+      const v = p.get(el.id);
+      if (el.type === 'checkbox') el.checked = v === '1';
+      else el.value = v;
+    });
+  }
+  function frameUrl() {
+    const p = new URLSearchParams();
+    settingEls.forEach(el => p.set(el.id, el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value));
+    return location.origin + location.pathname + '?' + p.toString();
+  }
+
+  // ---------- range value labels ----------
+  const units = { fsize: 'px', spacing: 'px', toffset: 'px', thick: 'px', pad: '°', pos: '°' };
+  function updateOutputs() {
+    document.querySelectorAll('output[for]').forEach(o => {
+      const el = $(o.getAttribute('for'));
+      o.textContent = el.id === 'zoom' ? Math.round(el.value * 100) + '%' : el.value + (units[el.id] || '');
+    });
+  }
+
+  // ---------- drawing ----------
+  function fontString() {
+    const f = $('font').value;
+    const family = f === 'system-ui' ? 'system-ui, sans-serif' : f === 'Georgia' ? 'Georgia, serif' : `"${f}", sans-serif`;
+    const weight = f === 'Montserrat' ? 800 : 700;
+    return `${weight} ${$('fsize').value}px ${family}`;
+  }
+
+  function drawPlaceholder() {
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 44px system-ui, sans-serif';
+    ctx.fillText('Click or drop a photo', C, C - 70);
+  }
+
+  function drawBanner() {
+    const text = $('text').value.trim();
+    if (!text) return;
+    const thick = +$('thick').value;
+    const rMid = R - thick / 2;
+    const rText = rMid + (+$('toffset').value);
+    const center = Math.PI / 2 + (+$('pos').value) * Math.PI / 180; // 0° = bottom
+    const onTop = Math.sin(center) < -1e-6; // top half: flip so text stays upright
+
+    ctx.font = fontString();
+    const spacing = +$('spacing').value;
+    const chars = [...text];
+    const widths = chars.map(ch => ctx.measureText(ch).width + spacing);
+    const textAng = widths.reduce((a, b) => a + b, 0) / rText;
+    const pad = (+$('pad').value) * Math.PI / 180;
+    const span = Math.min(textAng + 2 * pad, Math.PI * 2);
+    const a0 = center - span / 2, a1 = center + span / 2;
+
+    // Banner band, with a gradient running along the arc (color #1 on the reading-start side)
+    const c1 = $('c1').value, c2 = $('c2').value;
+    let fill = c1;
+    const cap = (thick / 2) / rMid;              // angle covered by each rounded end
+    const full = span + 2 * cap >= Math.PI * 2;  // banner wraps the whole circle
+    if (typeof ctx.createConicGradient === 'function') {
+      const g = ctx.createConicGradient(full ? a0 : a0 - cap, C, C);
+      const t = full ? Math.min(span / (Math.PI * 2), 1) : (span + 2 * cap) / (Math.PI * 2);
+      g.addColorStop(0, onTop ? c1 : c2);
+      g.addColorStop(t, onTop ? c2 : c1);
+      fill = g;
+    } else {
+      // Fallback for older browsers: straight gradient between the arc's ends
+      const sx = C + rMid * Math.cos(onTop ? a0 : a1), sy = C + rMid * Math.sin(onTop ? a0 : a1);
+      const ex = C + rMid * Math.cos(onTop ? a1 : a0), ey = C + rMid * Math.sin(onTop ? a1 : a0);
+      if (Math.hypot(ex - sx, ey - sy) > 1) {
+        const g = ctx.createLinearGradient(sx, sy, ex, ey);
+        g.addColorStop(0, c1); g.addColorStop(1, c2);
+        fill = g;
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(C, C, rMid, a0, a1);
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = thick;
+    ctx.lineCap = full ? 'butt' : 'round';
+    ctx.stroke();
+
+    // Text along the arc, one character at a time
+    ctx.save();
+    ctx.fillStyle = $('tcolor').value;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if ($('shadow').checked) {
+      ctx.shadowColor = $('scolor').value + '99';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+    }
+    let a = onTop ? center - textAng / 2 : center + textAng / 2;
+    const dir = onTop ? 1 : -1;
+    chars.forEach((ch, i) => {
+      const half = widths[i] / 2 / rText;
+      a += dir * half;
+      ctx.save();
+      ctx.translate(C + rText * Math.cos(a), C + rText * Math.sin(a));
+      ctx.rotate(onTop ? a + Math.PI / 2 : a - Math.PI / 2);
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      a += dir * half;
+    });
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(C, C, R, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = $('bg').value;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    if (state.img) {
+      const s = baseScale * state.scale;
+      const w = state.img.naturalWidth * s, h = state.img.naturalHeight * s;
+      ctx.drawImage(state.img, C - w / 2 + state.x, C - h / 2 + state.y, w, h);
+    } else {
+      drawPlaceholder();
+    }
+    drawBanner();
+    ctx.restore();
+  }
+
+  // ---------- loading a photo ----------
+  function loadFile(file) {
+    if (!file || !file.type.startsWith('image/')) { toast('Please choose an image file.'); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      state.img = img;
+      baseScale = Math.max(SIZE / img.naturalWidth, SIZE / img.naturalHeight); // cover the circle
+      resetPhoto();
+      URL.revokeObjectURL(url);
+      ['download', 'reset', 'share'].forEach(id => $(id).disabled = false);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image. Try a JPG or PNG."); };
+    img.src = url;
+  }
+  function resetPhoto() {
+    state.x = 0; state.y = 0;
+    setScale(1);
+    draw();
+  }
+  function setScale(s) {
+    state.scale = Math.min(5, Math.max(0.5, s));
+    $('zoom').value = state.scale;
+    updateOutputs();
+  }
+
+  $('pick').onclick = () => $('file').click();
+  $('file').onchange = e => { loadFile(e.target.files[0]); e.target.value = ''; };
+  $('reset').onclick = resetPhoto;
+  $('zoom').oninput = e => { setScale(+e.target.value); draw(); };
+
+  // Drag & drop a file onto the preview card
+  const stage = $('stage');
+  ['dragenter', 'dragover'].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); stage.classList.add('dragover'); }));
+  ['dragleave', 'drop'].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); stage.classList.remove('dragover'); }));
+  stage.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+  // ---------- drag / pinch / wheel to position ----------
+  const pts = new Map();
+  let pinch = null;
+  const dist = () => { const [p, q] = [...pts.values()]; return Math.hypot(p.x - q.x, p.y - q.y) || 1; };
+  cv.addEventListener('click', () => { if (!state.img) $('file').click(); });
+  cv.addEventListener('pointerdown', e => {
+    if (!state.img) return;
+    cv.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) pinch = { d: dist(), s: state.scale };
+  });
+  cv.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    const k = SIZE / cv.getBoundingClientRect().width; // CSS px -> canvas px
+    if (pts.size === 1) { state.x += (e.clientX - p.x) * k; state.y += (e.clientY - p.y) * k; }
+    p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 2 && pinch) setScale(pinch.s * dist() / pinch.d);
+    draw();
+  });
+  const endPointer = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  cv.addEventListener('pointerup', endPointer);
+  cv.addEventListener('pointercancel', endPointer);
+  cv.addEventListener('wheel', e => {
+    if (!state.img) return;
+    e.preventDefault();
+    setScale(state.scale * Math.exp(-e.deltaY * 0.0015));
+    draw();
+  }, { passive: false });
+
+  // ---------- export ----------
+  const toBlob = () => new Promise(res => cv.toBlob(res, 'image/png'));
+  $('download').onclick = async () => {
+    const blob = await toBlob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'profile-frame.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  // Web Share with files is only offered where the browser supports it (mostly mobile)
+  if (navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] })) {
+    $('share').hidden = false;
+  }
+  $('share').onclick = async () => {
+    const file = new File([await toBlob()], 'profile-frame.png', { type: 'image/png' });
+    try { await navigator.share({ files: [file], title: 'My profile picture' }); }
+    catch (err) { if (err.name !== 'AbortError') toast('Sharing failed — use Download instead.'); }
+  };
+  $('copylink').onclick = async () => {
+    const url = frameUrl();
+    try { await navigator.clipboard.writeText(url); toast('Link copied — it opens with these banner settings.'); }
+    catch { prompt('Copy this link:', url); }
+  };
+
+  // ---------- misc ----------
+  let tTimer;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(tTimer); tTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  settingEls.forEach(el => el.addEventListener('input', () => { updateOutputs(); draw(); }));
+  $('font').addEventListener('change', () => loadFontThenDraw());
+  function loadFontThenDraw() {
+    if (document.fonts && document.fonts.load) document.fonts.load(fontString()).then(draw, draw);
+    else draw();
+  }
+
+  readUrl();
+  updateOutputs();
+  draw();
+  loadFontThenDraw();
+})();
+</script>
+</body>
+</html>
