@@ -62,6 +62,9 @@
     <label class="zoom"><span class="lbl">Zoom <output id="zoomOut">100%</output></span>
       <input type="range" id="zoom" min="0.5" max="5" step="0.01" value="1"></label>
 
+    <label class="zoom"><span class="lbl">Banner position <output id="posOut">Bottom</output></span>
+      <input type="range" id="pos" min="-180" max="180" step="1" value="0"></label>
+
     <button class="btn primary big" id="save" disabled>Save to Photos</button>
     <p class="hint" id="saveHint" hidden>In the menu that opens, choose “Save Image”.</p>
     <button class="linkbtn" id="download" disabled hidden>Download the file instead</button>
@@ -126,12 +129,11 @@
     font: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     weight: 700,
     textColor: '#ffffff',
-    primary: '#390461',   // banner purple (ends)
-    mid: '#6a2c9e',       // lighter purple in the middle of the banner
+    color: '#390461',     // solid banner color
     thick: 150,           // banner thickness, px
-    padDeg: 34,           // banner length beyond the text on each side, degrees
-    fadeDeg: 30,          // how much of that length fades out to transparent, degrees
-    posDeg: 0,            // 0 = centered at the bottom
+    padDeg: 12,           // banner length beyond the text on each side, degrees
+    roundEnds: false,     // true = rounded ends, false = straight ends
+    posDeg: 0,            // starting position: 0 = bottom, ±90 = sides, 180 = top
     bg: '#dfe5ec',        // shows behind transparent photos
     fileName: 'IGaveADamn-profile.png'
   };
@@ -142,13 +144,9 @@
   const cv = $('cv'), ctx = cv.getContext('2d');
   cv.width = cv.height = SIZE;
 
-  const state = { img: null, x: 0, y: 0, scale: 1 };
+  const state = { img: null, x: 0, y: 0, scale: 1, pos: CFG.posDeg };
   let baseScale = 1;
 
-  const rgba = (hex, a) => {
-    const n = parseInt(hex.slice(1), 16);
-    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
-  };
   const fontFor = size => `${CFG.weight} ${size}px ${CFG.font}`;
 
   // ---------- drawing ----------
@@ -164,7 +162,7 @@
     const thick = CFG.thick;
     const rMid = R - thick / 2;
     const rText = rMid;
-    const center = Math.PI / 2 + CFG.posDeg * Math.PI / 180; // 0° = bottom
+    const center = Math.PI / 2 + state.pos * Math.PI / 180; // 0° = bottom
     const onTop = Math.sin(center) < -1e-6;                  // top half: flip so text stays upright
 
     // Glyph list: hashtag (big), a gap, then the URL (small)
@@ -179,27 +177,15 @@
     });
     const textAng = glyphs.reduce((s, g) => s + g.w, 0) / rText;
     const pad = CFG.padDeg * Math.PI / 180;
-    const fade = Math.min(CFG.fadeDeg, CFG.padDeg) * Math.PI / 180;
     const span = Math.min(textAng + 2 * pad, Math.PI * 2);
     const a0 = center - span / 2, a1 = center + span / 2;
 
-    // Banner band: purple gradient that fades to transparent at both ends
-    let fill = CFG.primary;
-    if (typeof ctx.createConicGradient === 'function') {
-      const g = ctx.createConicGradient(a0, C, C);
-      const T = Math.PI * 2, s = span / T, f = fade / T;
-      g.addColorStop(0, rgba(CFG.primary, 0));
-      g.addColorStop(f, CFG.primary);
-      g.addColorStop(s / 2, CFG.mid);
-      g.addColorStop(s - f, CFG.primary);
-      g.addColorStop(s, rgba(CFG.primary, 0));
-      fill = g;
-    } // older browsers without conic gradients: solid purple with straight ends
+    // Banner band: solid color
     ctx.beginPath();
     ctx.arc(C, C, rMid, a0, a1);
-    ctx.strokeStyle = fill;
+    ctx.strokeStyle = CFG.color;
     ctx.lineWidth = thick;
-    ctx.lineCap = 'butt';
+    ctx.lineCap = CFG.roundEnds && span < Math.PI * 2 ? 'round' : 'butt';
     ctx.stroke();
 
     // Text along the arc, one character at a time, sharing one baseline
@@ -276,6 +262,23 @@
   $('file').onchange = e => { loadFile(e.target.files[0]); e.target.value = ''; };
   $('reset').onclick = resetPhoto;
   $('zoom').oninput = e => { setScale(+e.target.value); draw(); };
+
+  // Banner position slider: 0 = bottom, ±90 = sides, ±180 = top
+  function posLabel(d) {
+    const a = Math.abs(d);
+    if (a <= 10) return 'Bottom';
+    if (a >= 170) return 'Top';
+    const side = d > 0 ? 'Left' : 'Right';
+    if (a >= 80 && a <= 100) return side;
+    return (a < 90 ? 'Bottom ' : 'Top ') + side.toLowerCase();
+  }
+  function setPos(d) {
+    state.pos = d;
+    $('pos').value = d;
+    $('posOut').textContent = posLabel(d);
+  }
+  $('pos').oninput = e => { setPos(+e.target.value); draw(); };
+  setPos(CFG.posDeg);
 
   // Drag & drop a file onto the preview card
   const stage = $('stage');
